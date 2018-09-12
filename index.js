@@ -270,7 +270,9 @@ NodeID3.prototype.update = function(tags, filebuffer, fn) {
         currentTags = currentTags.raw || {}
         //  update current tags with new or keep them
         Object.keys(rawTags).map(function(tag) {
-            currentTags[tag] = rawTags[tag]
+            if(typeof rawTags[tag] !== 'undefined') {
+                currentTags[tag] = rawTags[tag]
+            }
         })
         return this.write(currentTags, filebuffer)
     } else {
@@ -282,10 +284,85 @@ NodeID3.prototype.update = function(tags, filebuffer, fn) {
             currentTags = currentTags.raw || {}
             //  update current tags with new or keep them
             Object.keys(rawTags).map(function(tag) {
-                if(rawTags[tag]) {
+                if(typeof rawTags[tag] !== 'undefined') {
                     currentTags[tag] = rawTags[tag]
                 }
             })
+            this.write(currentTags, filebuffer, fn)
+        }.bind(this))
+    }
+}
+
+NodeID3.prototype.update2 = function(tags, tagsToRemove, filebuffer, fn) {
+    let rawTags = {}
+    Object.keys(tags).map(function(tagKey) {
+        //  if js name passed (TF)
+        if(TFrames[tagKey]) {
+            rawTags[TFrames[tagKey]] = tags[tagKey]
+
+        //  if js name passed (SF)
+        } else if(SFrames[tagKey]) {
+            rawTags[SFrames[tagKey].name] = tags[tagKey]
+
+        //  if raw name passed (TF)
+        } else if(Object.keys(TFrames).map(i => TFrames[i]).indexOf(tagKey) !== -1) {
+            rawTags[tagKey] = tags[tagKey]
+
+        //  if raw name passed (SF)
+        } else if(Object.keys(SFrames).map(i => SFrames[i]).map(x => x.name).indexOf(tagKey) !== -1) {
+            rawTags[tagKey] = tags[tagKey]
+        }
+    })
+    let rmTags = [];
+    if(tagsToRemove && Array.isArray(tagsToRemove)) {
+        tagsToRemove.forEach(function(tagKey) {
+            //  if js name passed (TF)
+            if(TFrames[tagKey]) {
+                rmTags.push(TFrames[tagKey]);
+
+            //  if js name passed (SF)
+            } else if(SFrames[tagKey]) {
+                rmTags.push(SFrames[tagKey].name);
+
+            //  if raw name passed (TF)
+            } else if(Object.keys(TFrames).map(i => TFrames[i]).indexOf(tagKey) !== -1) {
+                rmTags.push(tagKey);
+
+            //  if raw name passed (SF)
+            } else if(Object.keys(SFrames).map(i => SFrames[i]).map(x => x.name).indexOf(tagKey) !== -1) {
+                rmTags.push(tagKey);
+            }
+        })
+    }
+    if(!fn || typeof fn !== 'function') {
+        let currentTags = this.read(filebuffer)
+        currentTags = currentTags.raw || {}
+        //  update current tags with new or keep them
+        Object.keys(rawTags).map(function(tag) {
+            if(typeof rawTags[tag] !== 'undefined') {
+                currentTags[tag] = rawTags[tag]
+            }
+        })
+        if(rmTags && rmTags.length > 0) {
+            rmTags.forEach(v => delete currentTags[v]);
+        }
+        return this.write(currentTags, filebuffer)
+    } else {
+        this.read(filebuffer, function(err, currentTags) {
+            if(err) {
+                fn(err)
+                return
+            }
+            currentTags = currentTags.raw || {}
+            //  update current tags with new or keep them
+            Object.keys(rawTags).map(function(tag) {
+                if(typeof rawTags[tag] !== 'undefined') {
+                    currentTags[tag] = rawTags[tag]
+                }
+            })
+            if(rmTags && rmTags.length > 0) {
+                rmTags.forEach(v => delete currentTags[v]);
+            }
             this.write(currentTags, filebuffer, fn)
         }.bind(this))
     }
